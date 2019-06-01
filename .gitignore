@@ -1,0 +1,11 @@
+*.pyc
+.idea
+*.show
+*.json.out
+*.json.ok
+*.tidy
+*.dot
+**/.DS_Store
+**/venv
+**/node_modules
+
