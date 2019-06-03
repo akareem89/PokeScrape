@@ -12,6 +12,7 @@ from scrapy import Field, Item
 class PokemonItem(Item):
     generation = Field()
     number = Field()
+    base_name = Field()
     name = Field()
     icon = Field()
     moves = Field()
@@ -20,6 +21,7 @@ class PokemonItem(Item):
     base_speed = Field()
     pic = Field()
     mega_list = Field()
+    alternate_forms = Field()
     url = Field()
 
 
