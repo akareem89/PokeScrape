@@ -20,9 +20,79 @@ class PokemonItem(Item):
     abilities = Field()
     base_speed = Field()
     pic = Field()
+    mega_dct = Field()
     mega_list = Field()
     alternate_forms = Field()
     url = Field()
+
+    @staticmethod
+    def create(**kwargs):
+        gen_dct = {
+            'sm': 'Gen7Item',
+            'xy': 'Gen6Item',
+            'bw': 'Gen5Item',
+            'dp': 'Gen4Item',
+            'rs': 'Gen3Item',
+            'gs': 'Gen2Item',
+            'rby': 'Gen1Item',
+        }
+
+        # cls = gen_dct[kwargs.get('generation')]
+
+        # pokemon = PokemonItem()
+        pokemon = eval(gen_dct[kwargs.get('generation')])()
+        # print(f"pokemon: {type(pokemon)}")
+        pokemon['url'] = kwargs.get('url')
+        pokemon['generation'] = kwargs.get('generation')
+        pokemon['number'] = kwargs.get('number')
+        pokemon['base_name'] = kwargs.get('base_name', kwargs.get('name'))
+        pokemon['name'] = kwargs.get('name')
+        pokemon['icon'] = kwargs.get('icon')
+        pokemon['pic'] = kwargs.get('pic')
+        pokemon['abilities'] = kwargs.get('abilities', [])
+        pokemon['base_speed'] = kwargs.get('base_speed')
+        pokemon['alternate_forms'] = kwargs.get('alternate_forms', [])
+        pokemon['mega_dct'] = kwargs.get('mega_dct', {})
+        pokemon['mega_list'] = []
+        pokemon['moves'] = []
+        pokemon['priority_moves'] = []
+
+        return pokemon
+
+
+class Gen7Item(PokemonItem):
+    def __init__(self):
+        super().__init__()
+
+
+class Gen6Item(PokemonItem):
+    def __init__(self):
+        super().__init__()
+
+
+class Gen5Item(PokemonItem):
+    def __init__(self):
+        super().__init__()
+
+
+class Gen4Item(PokemonItem):
+    def __init__(self):
+        super().__init__()
+
+
+class Gen3Item(PokemonItem):
+    def __init__(self):
+        super().__init__()
+
+
+class Gen2Item(PokemonItem):
+    def __init__(self):
+        super().__init__()
+
+
+class Gen1Item(PokemonItem):
+    def __init__(self):
+        super().__init__()
 
 
 class PriorityItem(Item):
