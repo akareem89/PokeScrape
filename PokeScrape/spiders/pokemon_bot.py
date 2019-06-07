@@ -42,34 +42,34 @@ class PokemonBotSpider(scrapy.Spider):
     bad_pic = []
     bad_icon = []
     no_abilities = []
+    no_moves = []
     bad_form_name = []
 
     stop_at = -1
     rs_stop = 386
 
     def start_requests(self):
-
         # Scrape starting single #
-        num = '386'  # Deoxys
+        # self.get_moves = False
+        # self.stop_at = 0
+        # num = '800'
+        # num = '386'  # Deoxys
         # num = '492'  # Shaymin
         # num = '646'  # Kyurem
         # num = '550'  # Basculin
         # num = '745'  # Lycanroc
         # num = '026'  # Raichu
         # num = '479'  # Rotom
-        # num = '025'
-        # num = '053'
 
-
-        r = random.randint(1, 150)
+        # r = random.randint(1, 150)
         # num = ('0' * (3 - len(str(r)))) + str(r)
         num = '001'  # Start
         print(f"num: {num}")
-        # yield scrapy.Request(f'https://www.serebii.net/pokedex-sm/{num}.shtml', callback=self.parse_sm_xy, meta={'count': 0, 'gen': 'sm'})
+        yield scrapy.Request(f'https://www.serebii.net/pokedex-sm/{num}.shtml', callback=self.parse_sm_xy, meta={'count': 0, 'gen': 'sm'})
         # yield scrapy.Request(f'https://www.serebii.net/pokedex-xy/{num}.shtml', callback=self.parse_sm_xy, meta={'count': 0, 'gen': 'xy'})
         #
         # yield scrapy.Request(f'https://www.serebii.net/pokedex-bw/{num}.shtml', callback=self.parse_bw_dp, meta={'count': 0, 'gen': 'bw'})
-        yield scrapy.Request(f'https://www.serebii.net/pokedex-dp/{num}.shtml', callback=self.parse_bw_dp, meta={'count': 0, 'gen': 'dp'})
+        # yield scrapy.Request(f'https://www.serebii.net/pokedex-dp/{num}.shtml', callback=self.parse_bw_dp, meta={'count': 0, 'gen': 'dp'})
         #
         # rs_stop = self.stop_at if self.stop_at >= 0 else self.rs_stop
         # for url in ['https://www.serebii.net/pokedex-rs/' + ('0' * (3 - len(str(x)))) + str(x) + '.shtml' for x in range(int(num), int(num) + rs_stop)]:
@@ -121,7 +121,7 @@ class PokemonBotSpider(scrapy.Spider):
 
     def create_form_name_dct(self, name, forms_reposnse):
         alt_name_dct = {}
-        all_alternate_forms = []
+        alternate_forms = []
 
         alt_name_list = forms_reposnse.xpath('@alt').getall()
         alt_name_list = alt_name_list if alt_name_list else forms_reposnse.xpath('@title').getall()
@@ -129,9 +129,9 @@ class PokemonBotSpider(scrapy.Spider):
         for alt_name in alt_name_list:
             alt_form_name = self.get_form_name(name, alt_name)
             alt_name_dct[alt_name] = alt_form_name
-            all_alternate_forms.append(alt_form_name)
+            alternate_forms.append(alt_form_name)
 
-        return alt_name_dct, all_alternate_forms
+        return alt_name_dct, alternate_forms
 
     def create_form_ability_dct(self, alt_name_dct, response, gen=None):
         form_ability_dct = {'base': []}
@@ -157,13 +157,21 @@ class PokemonBotSpider(scrapy.Spider):
 
         return form_ability_dct
 
-    def create_form_speed_dct(self, alt_name_dct, response):
+    def create_form_speed_dct(self, alt_name_dct, response, gen=None):
         form_speed_dct = {'base': '',
                           'alternate': ''}
         for form in alt_name_dct.values():
             form_speed_dct[form] = []
 
-        for b in response.xpath('//table[@class="dextable"]/tr/td[starts-with(text(), "Base Stats")]/../preceding-sibling::tr//b[starts-with(text(), "Stats")]'):
+        if gen == 'sm' and response.xpath('//li[@title="Sun/Moon/Ultra Sun/Ultra Moon"]'):
+            stat_sections_path = '//li[@title="Sun/Moon/Ultra Sun/Ultra Moon"]//table[@class="dextable"]/tr/td[starts-with(text(), "Base Stats")]/../preceding-sibling::tr//b[starts-with(text(), "Stats")]'
+        else:
+            stat_sections_path = '//table[@class="dextable"]/tr/td[starts-with(text(), "Base Stats")]/../preceding-sibling::tr//b[starts-with(text(), "Stats")]'
+
+        if response.xpath('//a[@name="megastats"]'):  # if has mega
+            stat_sections_path = f'//a[@name="megastats"]/preceding::{stat_sections_path[2:]}'  # Ensure we do not include mega stats
+
+        for b in response.xpath(stat_sections_path):
             stat_header = b.xpath("text()").get().strip()
             if stat_header == 'Stats':
                 key = 'base'
@@ -189,6 +197,10 @@ class PokemonBotSpider(scrapy.Spider):
             move_section = response.xpath('//tr/th/font[@color="#ffffff" and starts-with(text(), "Attack")]')
             row_selector = 'ancestor-or-self::table/tbody/tr'
             level_selector = '../../th/font[text()="Level"]'
+        elif gen == 'sm' and response.xpath('//li[@title="Sun/Moon/Ultra Sun/Ultra Moon"]'):
+            move_section = response.xpath('//li[@title="Sun/Moon/Ultra Sun/Ultra Moon"]//tr/th[@class="attheader" and starts-with(text(), "Attack")]')
+            row_selector = '../../tr'
+            level_selector = '../th[text()="Level"]'
         else:
             move_section = response.xpath('//tr/th[@class="attheader" and starts-with(text(), "Attack")]')
             row_selector = '../../tr'
@@ -230,9 +242,9 @@ class PokemonBotSpider(scrapy.Spider):
 
         forms = response.xpath('//table[@class="dextable"]/tr[2]/td/div/a/img')
         if forms:
-            alt_name_dct, alternate_forms_lst = self.create_form_name_dct(name, forms)
+            alt_name_dct, alternate_forms = self.create_form_name_dct(name, forms)
             form_ability_dct = self.create_form_ability_dct(alt_name_dct, response)
-            form_speed_dct = self.create_form_speed_dct(alt_name_dct, response)
+            form_speed_dct = self.create_form_speed_dct(alt_name_dct, response, gen)
 
             for i in range(len(forms)):
                 form_icon = forms[i].xpath('@src').get()
@@ -241,8 +253,29 @@ class PokemonBotSpider(scrapy.Spider):
                 form_pic = self.get_form_pic(response, len(forms), i)
                 form_abilities = form_ability_dct[form_name] if form_ability_dct[form_name] else form_ability_dct['base']
                 form_base_speed = self.get_form_speed(form_speed_dct, form_name, i)
-                alternate_forms = [form_item for form_item in alternate_forms_lst if form_item != form_name]
-                form_move_dct = self.get_moveset(response, icon=form_icon)
+                form_move_dct = self.get_moveset(response, gen=gen, icon=form_icon)
+
+                mega_dct = {}
+                for mega in response.xpath('//table[@class="dextable"]/tr/td/font/b[starts-with(text(), "Mega") or starts-with(text(), "Ultra")]'):
+                    mega_name = mega.xpath('ancestor-or-self::table/tr[3]/td[2]//text()').get()
+
+                    if mega_name not in mega_dct:
+                        mega_pic = mega.xpath('ancestor-or-self::table/tr[3]/td[1]//td[1]/img/@src').get()
+                        mega_abilities = mega.xpath('ancestor-or-self::table/following-sibling::*[1]/tr[2]/td/a/b//text()').getall()
+                        mega_base_speed = mega.xpath('ancestor-or-self::table/following-sibling::*/tr/td[starts-with(text(), "Base Stats")]/following-sibling::td[last()]//text()').get()
+
+                        mega_pokemon = PokemonItem.create(url=response.request.url,
+                                                          base_name=name,
+                                                          name=mega_name,
+                                                          number=number,
+                                                          generation=gen,
+                                                          icon=response.urljoin(icon),
+                                                          pic=response.urljoin(mega_pic),
+                                                          abilities=mega_abilities,
+                                                          base_speed=mega_base_speed,
+                                                          is_mega='MEGA'
+                                                          )
+                        mega_dct[mega_name] = mega_pokemon  # Add Mega to base form dct of Mega Evolutions
 
                 pokemon = PokemonItem.create(url=response.request.url,
                                              base_name=name,
@@ -253,16 +286,16 @@ class PokemonBotSpider(scrapy.Spider):
                                              pic=response.urljoin(form_pic),
                                              abilities=form_abilities,
                                              base_speed=form_base_speed,
+                                             mega_dct=mega_dct,
                                              alternate_forms=alternate_forms
                                              )
-
                 for move_url, level in form_move_dct.items():
                     yield response.follow(move_url, callback=self.parse_move, meta={'size': len(form_move_dct), 'lvl': level, 'pokemon': pokemon}, dont_filter=True)
         else:
             pic = response.xpath('//table[@class="dextable"]/tr[2]/td/table/tr/td[1]/img/@src').get()
             abilities = response.xpath('(//a[@name="general"]/ancestor::div//td[@align="left" and @class="fooinfo"])[1]/a/b//text()').getall()
             base_speed = response.xpath('//table[@class="dextable"]/tr/td[starts-with(text(), "Base Stats")]/following-sibling::td[last()]//text()').get()
-            move_dct = self.get_moveset(response)
+            move_dct = self.get_moveset(response, gen=gen)
 
             mega_dct = {}
             for mega in response.xpath('//table[@class="dextable"]/tr/td/font/b[starts-with(text(), "Mega")]'):
@@ -296,7 +329,6 @@ class PokemonBotSpider(scrapy.Spider):
                                          base_speed=base_speed,
                                          mega_dct=mega_dct
                                          )
-
             for move_url, level in move_dct.items():
                 yield response.follow(move_url, callback=self.parse_move, meta={'size': len(move_dct), 'lvl': level, 'pokemon': pokemon}, dont_filter=True)
 
@@ -312,7 +344,7 @@ class PokemonBotSpider(scrapy.Spider):
 
         forms = response.xpath(f'(//td[text()="Alternate Forms"]/ancestor::table[@class="dextable"])[last()]//td[@class="pkmn"]/img')
         if forms:
-            alt_name_dct, alternate_forms_lst = self.create_form_name_dct(name, forms)
+            alt_name_dct, alternate_forms = self.create_form_name_dct(name, forms)
             form_ability_dct = self.create_form_ability_dct(alt_name_dct, response, gen)
             form_speed_dct = self.create_form_speed_dct(alt_name_dct, response)
 
@@ -323,7 +355,6 @@ class PokemonBotSpider(scrapy.Spider):
                 form_pic = self.get_form_pic(response, len(forms), i)
                 form_abilities = form_ability_dct[form_name] if form_ability_dct[form_name] else form_ability_dct['base']
                 form_base_speed = self.get_form_speed(form_speed_dct, form_name, i)
-                alternate_forms = [form_item for form_item in alternate_forms_lst if form_item != form_name]
                 form_move_dct = self.get_moveset(response, icon=form_icon)
 
                 pokemon = PokemonItem.create(url=response.request.url,
@@ -375,15 +406,14 @@ class PokemonBotSpider(scrapy.Spider):
         move_dct = self.get_moveset(response, gen=gen)
 
         if name == 'Deoxys':  # Deoxys is only pokemon with multiple forms in Gen 3
-            alternate_forms_lst = ['Deoxys(Ruby/Sapphire)', 'Deoxys(FireRed)', 'Deoxys(LeafGreen)', 'Deoxys(Emerald)']
+            alternate_forms = ['Deoxys(Ruby/Sapphire)', 'Deoxys(FireRed)', 'Deoxys(LeafGreen)', 'Deoxys(Emerald)']
 
-            for i in range(len(alternate_forms_lst)):
-                form_name = alternate_forms_lst[i]
+            for i in range(len(alternate_forms)):
+                form_name = alternate_forms[i]
                 form_pic = response.xpath('//table[@border="0" and @width="128"]/tr/td[@valign="center" and @width="50%"]/img/@src').getall()[i * 2]
                 form_base_speed = response.xpath('//table[@bordercolor="#868686"]/tr/td[starts-with(text(), "Base Stats")]/following-sibling::td[last()]//text()').getall()[i]
-                alternate_forms = [form_item for form_item in alternate_forms_lst if form_item != form_name]
 
-                print(f'name: {form_name} number: {number} icon: {icon} pic: {form_pic} abilities: {abilities} base_speed: {form_base_speed} alternate_forms: {alternate_forms}')
+                # print(f'name: {form_name} number: {number} icon: {icon} pic: {form_pic} abilities: {abilities} base_speed: {form_base_speed} alternate_forms: {alternate_forms}')
                 pokemon = PokemonItem.create(url=response.request.url,
                                              base_name=name,
                                              name=form_name,
@@ -397,7 +427,6 @@ class PokemonBotSpider(scrapy.Spider):
                                              )
 
                 for move_url, level in move_dct.items():
-                    # yield response.follow(move_url, callback=self.parse_move, meta={'lvl': level, 'gen': gen, 'name': form_name}, dont_filter=True)
                     yield response.follow(move_url, callback=self.parse_move, meta={'size': len(move_dct), 'lvl': level, 'pokemon': pokemon}, dont_filter=True)
         else:
             pic = response.xpath('//table[@border="0" and @width="128"]/tr/td[@valign="center" and @width="50%"]/img/@src').get()
@@ -414,7 +443,6 @@ class PokemonBotSpider(scrapy.Spider):
                                          )
 
             for move_url, level in move_dct.items():
-                # yield response.follow(move_url, callback=self.parse_move, meta={'lvl': level, 'gen': gen, 'name': name}, dont_filter=True)
                 yield response.follow(move_url, callback=self.parse_move, meta={'size': len(move_dct), 'lvl': level, 'pokemon': pokemon}, dont_filter=True)
 
     def parse_gs_rby(self, response):
@@ -446,6 +474,9 @@ class PokemonBotSpider(scrapy.Spider):
         if not pokemon['abilities'] and (pokemon['generation'] != 'gs' and pokemon['generation'] != 'rby'):
             self.no_abilities.append(f'POKEMON: {pokemon["name"]} | URL: {pokemon["url"]} | GEN: {pokemon["generation"]}{pokemon["number"]}')
 
+        if not pokemon['moves']:
+            self.no_moves.append(f'POKEMON: {pokemon["name"]} | URL: {pokemon["url"]} | GEN: {pokemon["generation"]}{pokemon["number"]} | PIC: {pokemon["pic"]}')
+
         if 'html' in pokemon['pic'] or not pokemon['pic']:
             self.bad_pic.append(f'POKEMON: {pokemon["name"]} | URL: {pokemon["url"]} | GEN: {pokemon["generation"]}{pokemon["number"]} | PIC: {pokemon["pic"]}')
 
@@ -460,9 +491,9 @@ class PokemonBotSpider(scrapy.Spider):
             pokemon['mega_list'].append(mega_name)
 
             self.dct[pokemon['generation']][mega['name']] = mega
-            # print(f'MEGA:{mega["name"]} | URL:{mega["url"]} | PIC:{mega["pic"]} | ICON:{mega["icon"]} | ABILITIES:{mega["abilities"]} | SPEED:{mega["base_speed"]} | GEN:{mega["generation"]}{mega["number"]} | ALTS:{mega["alternate_forms"]} M={len(mega["moves"])}')
+            print(f'MEGA:{mega["name"]} | URL:{mega["url"]} | PIC:{mega["pic"]} | ICON:{mega["icon"]} | ABILITIES:{mega["abilities"]} | SPEED:{mega["base_speed"]} | GEN:{mega["generation"]}{mega["number"]} | ALTS:{mega["alternate_forms"]} M={len(mega["moves"])}')
 
-        # print(f'POKEMON:{pokemon["name"]} | URL:{pokemon["url"]} | PIC:{pokemon["pic"]} | ICON:{pokemon["icon"]} | ABILITIES:{pokemon["abilities"]} | SPEED:{pokemon["base_speed"]} | GEN:{pokemon["generation"]}{pokemon["number"]} | ALTS:{pokemon["alternate_forms"]} M={len(pokemon["moves"])}')
+        print(f'POKEMON:{pokemon["name"]} | URL:{pokemon["url"]} | PIC:{pokemon["pic"]} | ICON:{pokemon["icon"]} | ABILITIES:{pokemon["abilities"]} | SPEED:{pokemon["base_speed"]} | GEN:{pokemon["generation"]}{pokemon["number"]} | ALTS:{pokemon["alternate_forms"]} M={len(pokemon["moves"])}')
 
         # print(pokemon)
 
@@ -544,12 +575,14 @@ class PokemonBotSpider(scrapy.Spider):
                 priority_header = response.xpath('//table[@class="dextable"]/tr/td/b[text()="Speed Priority"]')
                 move['priority'] = priority_header.xpath('../../following-sibling::tr[1]/td[2]//text()').get().strip()
 
+            if '(' in move['priority']:
+                move['priority'] = re.sub('\\(.*?\\)', '', move['priority']).strip()
+
             self.move_dct[move['generation']][move['name']] = move
             self.move_dct['all'][move['url']] = move
 
             remaining = response.xpath('//table[@class="dextab"]/tr/td[@class="pkmn"]/a/@href')
 
-            # print(f'remaining: {remaining}')
             if remaining:
                 for url in remaining:
                     yield response.follow(url.get(), callback=self.parse_move, dont_filter=True)
@@ -564,10 +597,6 @@ class PokemonBotSpider(scrapy.Spider):
             expected_moves_size = response.meta['size']
             p_lvl = response.meta['lvl']
 
-            # p_gen = response.meta['gen']
-            # p_name = response.meta['name']
-            # pokemon = self.dct[p_gen][p_name]
-
             pokemon['moves'].append({'name': move['name'], 'level': p_lvl, 'priority': move['priority']})
 
             if move['priority'] != '0':
@@ -575,21 +604,17 @@ class PokemonBotSpider(scrapy.Spider):
 
             if len(pokemon['moves']) == expected_moves_size:
                 self.add_pokemon(pokemon)
-
                 yield pokemon
-            # else:
-            #     is_mega = "MEGA " if pokemon["mega_list"] else ""
-            #     ml = len(pokemon['moves'])
-            # print(f'{is_mega}NAME:{pokemon["name"]} | M={ml}|E={expected_moves_size}')
-
-
 
     def spider_closed(self, spider):
         for i in self.no_abilities:
             print(f'NO ABILITIES: {i}')
 
-        for i in self.bad_form_name:
-            print(f'BAD NAME: {i}')
+        for i in self.no_moves:
+            print(f'NO MOVES: {i}')
+
+        for i in self.bad_icon:
+            print(f'ICON: {i}')
 
         for i in self.bad_pic:
             print(f'PIC: {i}')
@@ -605,11 +630,3 @@ class PokemonBotSpider(scrapy.Spider):
         # print(f'GS: {self.dct["gs"]}')
         # print(f'RBY: {self.dct["rby"]}')
         print("DONE")
-
-    def valid_url(self, url):
-        print(f"url: {url}")
-        for s in url.split('/'):
-            print(f"s: {s}")
-
-
-        return True
