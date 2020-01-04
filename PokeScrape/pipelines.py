@@ -13,7 +13,7 @@
 
 from scrapy.exporters import JsonItemExporter
 from scrapy import signals
-from scrapy.xlib.pydispatch import dispatcher
+from pydispatch import dispatcher
 
 
 def item_type(item):
@@ -22,7 +22,7 @@ def item_type(item):
 
 class MultiJSONItemPipeline(object):
     count = 1
-    SaveTypes = ['gen7', 'gen6', 'gen5', 'gen4', 'gen3', 'gen2', 'gen1', 'move']
+    SaveTypes = ['gen8', 'gen7', 'gen6', 'gen5', 'gen4', 'gen3', 'gen2', 'gen1', 'move']
 
     def __init__(self):
         dispatcher.connect(self.spider_opened, signal=signals.spider_opened)

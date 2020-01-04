@@ -203,10 +203,10 @@ def format_for_priority(gen=None):
 
 # run_pokemon_bot()
 
-# format_for_priority(3)
+format_for_priority(8)
 
-for i in range(1,8):
-    format_for_priority(i)
+# for i in range(1,8):
+#     format_for_priority(i)
 
 # check_count()
 # check_count("saved/")

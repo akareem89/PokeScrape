@@ -16,6 +16,7 @@ class PokemonBotSpider(scrapy.Spider):
 
     # Dictionary for all pokemon in each generation
     dct = {
+        'swsh': {},
         'sm': {},
         'xy': {},
         'bw': {},
@@ -27,6 +28,7 @@ class PokemonBotSpider(scrapy.Spider):
 
     # Dictionary for all moves in each generation
     move_dct = {
+        'swsh': {},
         'sm': {},
         'xy': {},
         'bw': {},
@@ -63,9 +65,11 @@ class PokemonBotSpider(scrapy.Spider):
 
         # r = random.randint(1, 150)
         # num = ('0' * (3 - len(str(r)))) + str(r)
-        num = '001'  # Start
-        print(f"num: {num}")
-        yield scrapy.Request(f'https://www.serebii.net/pokedex-sm/{num}.shtml', callback=self.parse_sm_xy, meta={'count': 0, 'gen': 'sm'})
+        # num = '001'  # Start
+        # print(f"num: {num}")
+        yield scrapy.Request(f'https://www.serebii.net/pokedex-swsh/bulbasaur/', callback=self.parse_sw_sh,
+                             meta={'count': 0, 'gen': 'swsh'})
+        # yield scrapy.Request(f'https://www.serebii.net/pokedex-sm/{num}.shtml', callback=self.parse_sm_xy, meta={'count': 0, 'gen': 'sm'})
         # yield scrapy.Request(f'https://www.serebii.net/pokedex-xy/{num}.shtml', callback=self.parse_sm_xy, meta={'count': 0, 'gen': 'xy'})
         #
         # yield scrapy.Request(f'https://www.serebii.net/pokedex-bw/{num}.shtml', callback=self.parse_bw_dp, meta={'count': 0, 'gen': 'bw'})
@@ -165,6 +169,8 @@ class PokemonBotSpider(scrapy.Spider):
 
         if gen == 'sm' and response.xpath('//li[@title="Sun/Moon/Ultra Sun/Ultra Moon"]'):
             stat_sections_path = '//li[@title="Sun/Moon/Ultra Sun/Ultra Moon"]//table[@class="dextable"]/tr/td[starts-with(text(), "Base Stats")]/../preceding-sibling::tr//b[starts-with(text(), "Stats")]'
+        elif gen == 'swsh':
+            stat_sections_path ='//table[@class="dextable"]/tr/td[starts-with(text(), "Base Stats")]/../preceding-sibling::tr//h2[starts-with(text(), "Stats")]'
         else:
             stat_sections_path = '//table[@class="dextable"]/tr/td[starts-with(text(), "Base Stats")]/../preceding-sibling::tr//b[starts-with(text(), "Stats")]'
 
@@ -179,7 +185,7 @@ class PokemonBotSpider(scrapy.Spider):
                 key = 'alternate'
 
             for alt in alt_name_dct:
-                if alt in stat_header:
+                if alt in stat_header or alt.replace('Form', "").strip() in stat_header:
                     key = alt_name_dct[alt]
 
             speed = b.xpath('../../following-sibling::tr/td[starts-with(text(), "Base Stats")]/following-sibling::td[last()]//text()').get().strip()
@@ -233,6 +239,114 @@ class PokemonBotSpider(scrapy.Spider):
                 move_dct[move_url] = level
 
         return move_dct
+
+    def parse_sw_sh(self, response):
+        gen = response.meta['gen']
+        icon = response.xpath('//table[@class="dextab"]/tr/td[@width="65%"]/table/tr/td[1]/img/@src').get().strip()
+        number = response.xpath('//table[@class="dextab"]/tr/td[@width="65%"]/table/tr/td[2]//text()').get().strip().split(' ')[0]
+        name = response.xpath('//table[@class="dextab"]/tr/td[@width="65%"]/table/tr/td[2]//text()').get().strip().split(' ')[1]
+
+        giga_name = ""
+        giga_pic = ""
+        giga_icon = ""
+        giga_move_dct = {}
+        has_giga = False
+        giga = response.xpath('//table[@class="dextable"]//tr/td/h2[starts-with(text(), "Gigantamax ")]')
+        if giga:
+            giga_name = giga.xpath('text()').get()
+            giga_pic = giga.xpath('ancestor-or-self::table//img/@src').get()
+            giga_icon = response.xpath('//table[@class="dextable"]//td[@class="pkmn"]/img[starts-with(@alt, "Gigantamax ")]/@src').get()
+            giga_move_dct = self.get_moveset(response, gen=gen, icon=giga_icon)
+            has_giga = True
+
+            print(f"giga_name: {giga_name}")
+            print(f"giga_icon: {giga_icon}")
+            print(f"giga_move_dct: {giga_move_dct}")
+
+        forms = response.xpath('//table[@class="dextable"]/tr[2]/td/div/a/img')
+        if forms:
+            alt_name_dct, alternate_forms = self.create_form_name_dct(name, forms)
+            form_ability_dct = self.create_form_ability_dct(alt_name_dct, response)
+            form_speed_dct = self.create_form_speed_dct(alt_name_dct, response, gen)
+
+            for i in range(len(forms)):
+                form_icon = forms[i].xpath('@src').get()
+                form_alt_name = forms[i].xpath('@alt').get()
+                form_name = alt_name_dct[form_alt_name]
+                form_pic = self.get_form_pic(response, len(forms), i)
+                form_abilities = form_ability_dct[form_name] if form_ability_dct[form_name] else form_ability_dct['base']
+                form_base_speed = self.get_form_speed(form_speed_dct, form_name, i)
+                form_move_dct = self.get_moveset(response, gen=gen, icon=form_icon)
+
+                giga_pokemon = None
+                if has_giga:
+                    giga_pokemon = PokemonItem.create(url=response.request.url,
+                                                      base_name=name,
+                                                      name=giga_name,
+                                                      number=number,
+                                                      generation=gen,
+                                                      icon=response.urljoin(giga_icon),
+                                                      pic=response.urljoin(giga_pic),
+                                                      abilities=form_abilities,
+                                                      base_speed=form_base_speed,
+                                                      is_giga='GIGA'
+                                                      )
+                for move_url, level in giga_move_dct.items():
+                    yield response.follow(move_url, callback=self.parse_move, meta={'size': len(giga_move_dct), 'lvl': level, 'pokemon': giga_pokemon}, dont_filter=True)
+
+                pokemon = PokemonItem.create(url=response.request.url,
+                                             base_name=name,
+                                             name=form_name,
+                                             number=number,
+                                             generation=gen,
+                                             icon=response.urljoin(form_icon),
+                                             pic=response.urljoin(form_pic),
+                                             abilities=form_abilities,
+                                             base_speed=form_base_speed,
+                                             giga_form=giga_pokemon,
+                                             alternate_forms=alternate_forms
+                                             )
+                for move_url, level in form_move_dct.items():
+                    yield response.follow(move_url, callback=self.parse_move, meta={'size': len(form_move_dct), 'lvl': level, 'pokemon': pokemon}, dont_filter=True)
+        else:
+            pic = response.xpath('//table[@class="dextable"]/tr[2]/td/table/tr/td[1]/img/@src').get()
+            abilities = response.xpath('(//a[@name="general"]/ancestor::div//td[@align="left" and @class="fooinfo"])[1]/a/b//text()').getall()
+            base_speed = response.xpath('//table[@class="dextable"]/tr/td[starts-with(text(), "Base Stats")]/following-sibling::td[last()]//text()').get()
+            move_dct = self.get_moveset(response, gen=gen, icon=icon)
+
+            giga_pokemon = None
+            if has_giga:
+                giga_pokemon = PokemonItem.create(url=response.request.url,
+                                                  base_name=name,
+                                                  name=giga_name,
+                                                  number=number,
+                                                  generation=gen,
+                                                  icon=response.urljoin(giga_icon),
+                                                  pic=response.urljoin(giga_pic),
+                                                  abilities=abilities,
+                                                  base_speed=base_speed,
+                                                  is_giga='GIGA'
+                                                  )
+            for move_url, level in giga_move_dct.items():
+                yield response.follow(move_url, callback=self.parse_move, meta={'size': len(giga_move_dct), 'lvl': level, 'pokemon': giga_pokemon}, dont_filter=True)
+
+            pokemon = PokemonItem.create(url=response.request.url,
+                                         name=name,
+                                         number=number,
+                                         generation=gen,
+                                         icon=response.urljoin(icon),
+                                         pic=response.urljoin(pic),
+                                         abilities=abilities,
+                                         base_speed=base_speed,
+                                         giga_form=giga_pokemon,
+                                         )
+            for move_url, level in move_dct.items():
+                yield response.follow(move_url, callback=self.parse_move, meta={'size': len(move_dct), 'lvl': level, 'pokemon': pokemon}, dont_filter=True)
+
+        next_page = response.xpath('//table/tr/td[@align="right"]/table[@border="0"]/tr/td/a/@href')
+        if next_page and (self.stop_at == -1 or self.stop_at > response.meta['count']):
+            yield response.follow(next_page.get(), callback=self.parse_sw_sh, meta={'count': response.meta['count'] + 1, 'gen': gen})
+
 
     def parse_sm_xy(self, response):
         gen = response.meta['gen']
@@ -499,6 +613,7 @@ class PokemonBotSpider(scrapy.Spider):
 
     def parse_move(self, response):
         gen_dct = {
+            'Gen VIII Dex': 'swsh',
             'Gen VII Dex': 'sm',
             'Gen VI Dex': 'xy',
             'Gen V Dex': 'bw',
@@ -506,6 +621,7 @@ class PokemonBotSpider(scrapy.Spider):
             'Gen III Dex': 'rs',
             'Gen II Dex': 'gs',
             'Gen I Dex': 'rby',
+            'attackdex-swsh': 'swsh',
             'attackdex-sm': 'sm',
             'attackdex-xy': 'xy',
             'attackdex-bw': 'bw',

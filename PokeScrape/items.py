@@ -21,6 +21,7 @@ class PokemonItem(Item):
     base_speed = Field()
     pic = Field()
     mega_dct = Field()
+    giga_form = Field()
     mega_list = Field()
     alternate_forms = Field()
     url = Field()
@@ -28,6 +29,7 @@ class PokemonItem(Item):
     @staticmethod
     def create(**kwargs):
         gen_dct = {
+            'swsh': 'Gen8Item',
             'sm': 'Gen7Item',
             'xy': 'Gen6Item',
             'bw': 'Gen5Item',
@@ -53,11 +55,17 @@ class PokemonItem(Item):
         pokemon['base_speed'] = kwargs.get('base_speed')
         pokemon['alternate_forms'] = kwargs.get('alternate_forms', [])
         pokemon['mega_dct'] = kwargs.get('mega_dct', {})
+        pokemon['giga_form'] = kwargs.get('giga_form', None)
         pokemon['mega_list'] = []
         pokemon['moves'] = []
         pokemon['priority_moves'] = []
 
         return pokemon
+
+
+class Gen8Item(PokemonItem):
+    def __init__(self):
+        super().__init__()
 
 
 class Gen7Item(PokemonItem):
