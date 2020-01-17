@@ -16,6 +16,16 @@ NEWSPIDER_MODULE = 'PokeScrape.spiders'
 
 LOG_LEVEL = 'ERROR'
 
+# Configure item pipelines
+# See https://doc.scrapy.org/en/latest/topics/item-pipeline.html
+ITEM_PIPELINES = {
+   # 'PokeScrape.pipelines.PokescrapePipeline': 300,
+   'PokeScrape.pipelines.MultiJSONItemPipeline': 300,
+   'PokeScrape.pipelines.MultiImagesItemPipeline': 1,
+}
+
+FILES_STORE = '_images'
+
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = 'PokeScrape (+http://www.yourdomain.com)'
 
@@ -65,12 +75,6 @@ ROBOTSTXT_OBEY = False
 #    'scrapy.extensions.telnet.TelnetConsole': None,
 #}
 
-# Configure item pipelines
-# See https://doc.scrapy.org/en/latest/topics/item-pipeline.html
-ITEM_PIPELINES = {
-   # 'PokeScrape.pipelines.PokescrapePipeline': 300,
-   'PokeScrape.pipelines.MultiJSONItemPipeline': 300,
-}
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://doc.scrapy.org/en/latest/topics/autothrottle.html

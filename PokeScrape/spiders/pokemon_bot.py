@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import random
+from copy import deepcopy
 
 import scrapy
 from scrapy import signals
@@ -65,22 +66,22 @@ class PokemonBotSpider(scrapy.Spider):
 
         # r = random.randint(1, 150)
         # num = ('0' * (3 - len(str(r)))) + str(r)
-        # num = '001'  # Start
+        num = '001'  # Start
         # print(f"num: {num}")
-        yield scrapy.Request(f'https://www.serebii.net/pokedex-swsh/bulbasaur/', callback=self.parse_sw_sh,
-                             meta={'count': 0, 'gen': 'swsh'})
-        # yield scrapy.Request(f'https://www.serebii.net/pokedex-sm/{num}.shtml', callback=self.parse_sm_xy, meta={'count': 0, 'gen': 'sm'})
-        # yield scrapy.Request(f'https://www.serebii.net/pokedex-xy/{num}.shtml', callback=self.parse_sm_xy, meta={'count': 0, 'gen': 'xy'})
-        #
-        # yield scrapy.Request(f'https://www.serebii.net/pokedex-bw/{num}.shtml', callback=self.parse_bw_dp, meta={'count': 0, 'gen': 'bw'})
-        # yield scrapy.Request(f'https://www.serebii.net/pokedex-dp/{num}.shtml', callback=self.parse_bw_dp, meta={'count': 0, 'gen': 'dp'})
-        #
-        # rs_stop = self.stop_at if self.stop_at >= 0 else self.rs_stop
-        # for url in ['https://www.serebii.net/pokedex-rs/' + ('0' * (3 - len(str(x)))) + str(x) + '.shtml' for x in range(int(num), int(num) + rs_stop)]:
-        #     yield scrapy.Request(url, callback=self.parse_rs, meta={'count': self.stop_at, 'gen': 'rs'})
-        #
-        # yield scrapy.Request(f'https://www.serebii.net/pokedex-gs/{num}.shtml', callback=self.parse_gs_rby, meta={'count': 0, 'gen': 'gs'})
-        # yield scrapy.Request(f'https://www.serebii.net/pokedex/{num}.shtml', callback=self.parse_gs_rby, meta={'count': 0, 'gen': 'rby'})
+        yield scrapy.Request(f'https://www.serebii.net/pokedex-swsh/bulbasaur/', callback=self.parse_sw_sh, meta={'count': 0, 'gen': 'swsh'})
+
+        yield scrapy.Request(f'https://www.serebii.net/pokedex-sm/{num}.shtml', callback=self.parse_sm_xy, meta={'count': 0, 'gen': 'sm'})
+        yield scrapy.Request(f'https://www.serebii.net/pokedex-xy/{num}.shtml', callback=self.parse_sm_xy, meta={'count': 0, 'gen': 'xy'})
+
+        yield scrapy.Request(f'https://www.serebii.net/pokedex-bw/{num}.shtml', callback=self.parse_bw_dp, meta={'count': 0, 'gen': 'bw'})
+        yield scrapy.Request(f'https://www.serebii.net/pokedex-dp/{num}.shtml', callback=self.parse_bw_dp, meta={'count': 0, 'gen': 'dp'})
+
+        rs_stop = self.stop_at if self.stop_at >= 0 else self.rs_stop
+        for url in ['https://www.serebii.net/pokedex-rs/' + ('0' * (3 - len(str(x)))) + str(x) + '.shtml' for x in range(int(num), int(num) + rs_stop)]:
+            yield scrapy.Request(url, callback=self.parse_rs, meta={'count': self.stop_at, 'gen': 'rs'})
+
+        yield scrapy.Request(f'https://www.serebii.net/pokedex-gs/{num}.shtml', callback=self.parse_gs_rby, meta={'count': 0, 'gen': 'gs'})
+        yield scrapy.Request(f'https://www.serebii.net/pokedex/{num}.shtml', callback=self.parse_gs_rby, meta={'count': 0, 'gen': 'rby'})
 
         # DO NOT ERASE - ADIL
         # yield scrapy.Request(f'https://www.serebii.net/pokedex-dp/001.shtml', callback=self.parse_bw_dp, meta={'count': 0, 'gen': 'dp'})                                                                                                                                                                                 })
@@ -92,6 +93,7 @@ class PokemonBotSpider(scrapy.Spider):
         form_name = form_name.replace('Forme', '').strip()
         form_name = form_name.replace('Form', '').strip()
         form_name = form_name.replace('Regular', '').strip()
+        form_name = form_name.replace('-', ' ').strip()
         if form_name:
             form_name = f'{base_name}({form_name.strip()})'
         else:
@@ -663,6 +665,7 @@ class PokemonBotSpider(scrapy.Spider):
                 gen = gen_dct[move['url'].split("/")[3]]
 
             move['generation'] = gen
+            move['image_urls'] = []
 
             if gen == gen_dct['Gen III Dex']:  # Serebii does not have
                 move['name'] = response.xpath('//table[@class="dextab"]/tr[2]/td[1]//text()').get().strip()
@@ -676,13 +679,16 @@ class PokemonBotSpider(scrapy.Spider):
                     move['priority'] = gen_3_priority[move['name']]
                 else:
                     move['priority'] = '0'
+                move['image_urls'].append(move['type'])
             else:
                 move['name'] = response.xpath('//table[@class="dextable"]/tr[2]/td[1]//text()').get().strip()
                 move['type'] = response.urljoin(
                     response.xpath('//table[@class="dextable"]/tr[2]/td[2]/a/img/@src').get())
+                move['image_urls'].append(move['type'])
                 if response.xpath('//table[@class="dextable"]/tr[1]/td[3]/b[text()="Category"]'):
                     move['category'] = response.urljoin(
                         response.xpath('//table[@class="dextable"]/tr[2]/td[3]/a/img/@src').get())
+                    move['image_urls'].append(move['category'])
                 else:
                     move['category'] = ''
                 move['pp'] = response.xpath('//table[@class="dextable"]/tr[4]/td[1]//text()').get().strip()
@@ -707,16 +713,16 @@ class PokemonBotSpider(scrapy.Spider):
             yield move
 
         if 'pokemon' in response.meta and 'size' in response.meta:
-            move = self.move_dct['all'][current_move_url]
+            pokemon_move = deepcopy(self.move_dct['all'][current_move_url])
 
             pokemon = response.meta['pokemon']
             expected_moves_size = response.meta['size']
-            p_lvl = response.meta['lvl']
+            pokemon_move['level'] = response.meta['lvl']
 
-            pokemon['moves'].append({'name': move['name'], 'level': p_lvl, 'priority': move['priority']})
+            pokemon['moves'].append(pokemon_move)
 
-            if move['priority'] != '0':
-                pokemon['priority_moves'].append({'name': move['name'], 'level': p_lvl, 'priority': move['priority']})
+            if pokemon_move['priority'] != '0':
+                pokemon['priority_moves'].append(pokemon_move)
 
             if len(pokemon['moves']) == expected_moves_size:
                 self.add_pokemon(pokemon)

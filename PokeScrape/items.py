@@ -25,6 +25,8 @@ class PokemonItem(Item):
     mega_list = Field()
     alternate_forms = Field()
     url = Field()
+    images = Field()
+    image_urls = Field()
 
     @staticmethod
     def create(**kwargs):
@@ -59,6 +61,9 @@ class PokemonItem(Item):
         pokemon['mega_list'] = []
         pokemon['moves'] = []
         pokemon['priority_moves'] = []
+        pokemon["image_urls"] = [pokemon['icon'], pokemon['pic']]
+
+
 
         return pokemon
 
@@ -123,3 +128,6 @@ class MoveItem(Item):
     pp = Field()
     attack = Field()
     accuracy = Field()
+    level = Field()
+    images = Field()
+    image_urls = Field()
